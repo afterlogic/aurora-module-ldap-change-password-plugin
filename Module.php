@@ -88,31 +88,46 @@ class Module extends \Aurora\System\Module\AbstractModule
 			$oLdap = $this->GetLdap($oAccount, $this->getConfig('BindDn', ''), $this->getConfig('BindPassword', ''));
 
 			$sSearchAttribute = (string) $this->getConfig('SearchAttribute', 'mail');
-			if ($oLdap && $oLdap->Search('('. $sSearchAttribute .'='.$oAccount->Email.')') && 1 === $oLdap->ResultCount())
+			
+			if ($oLdap)
 			{
-				$aData = $oLdap->ResultItem();
-				$sDn = !empty($aData['dn']) ? $aData['dn'] : '';
-
-				try
+				
+				if($oLdap->Search('('. $sSearchAttribute .'='.$oAccount->Email.')') && 1 === $oLdap->ResultCount())
 				{
-					if (!empty($sDn) && $this->GetLdap($oAccount, $sDn, $oAccount->IncomingPassword))
+					$aData = $oLdap->ResultItem();
+					$sDn = !empty($aData['dn']) ? $aData['dn'] : '';
+
+					try
 					{
-						$aModifyEntry = array(
-							(string) $this->getConfig('PasswordAttribute', 'password') => $this->PasswordHash($sPassword)
-						);
-						$oLdap->SetSearchDN('');
-						$oLdap->Modify($sDn, $aModifyEntry);
-						$bResult = true;
+						if (!empty($sDn) && $this->GetLdap($oAccount, $sDn, $oAccount->IncomingPassword))
+						{
+							$aModifyEntry = array(
+								(string) $this->getConfig('PasswordAttribute', 'password') => $this->PasswordHash($sPassword)
+							);
+							$oLdap->SetSearchDN('');
+							$oLdap->Modify($sDn, $aModifyEntry);
+							$bResult = true;
+						}
+						else
+						{
+							\Aurora\System\Api::Log('Can`t change password for user ' . $oAccount->Email . ' on LDAP-server', \Aurora\System\Enums\LogLevel::Full, 'ldap-');
+						}
+					}
+					catch (\Exception $oException)
+					{
+						$bResult = false;
+						\Aurora\System\Api::LogException($oException, \Aurora\System\Enums\LogLevel::Full, 'ldap-');
 					}
 				}
-				catch (\Exception $oException)
+				else
 				{
 					$bResult = false;
+					\Aurora\System\Api::Log('Can`t find user ' . $oAccount->Email . ' on LDAP-server', \Aurora\System\Enums\LogLevel::Full, 'ldap-');
 				}
 			}
 			else
 			{
-				$bResult = false;
+				\Aurora\System\Api::Log('Can`t connect to LDAP-server', \Aurora\System\Enums\LogLevel::Full, 'ldap-');
 			}
 		}
 		
@@ -130,11 +145,23 @@ class Module extends \Aurora\System\Module\AbstractModule
 		
 		$oAccount = $this->oMailModule->GetAccount($aArguments['AccountId']);
 
-		if ($oAccount && $this->checkCanChangePassword($oAccount))
+		if ($oAccount)
 		{
-			$mResult = $this->changePassword($oAccount, $aArguments['NewPassword']);
-			return !$mResult; // break subscriptions
+			if ($this->checkCanChangePassword($oAccount))
+			{
+				$mResult = $this->changePassword($oAccount, $aArguments['NewPassword']);
+				return !$mResult; // break subscriptions
+			}
+			else
+			{
+				\Aurora\System\Api::Log('Change password is not allowed for this account', \Aurora\System\Enums\LogLevel::Full, 'ldap-');
+			}
 		}
+		else
+		{
+			\Aurora\System\Api::Log('Account not found', \Aurora\System\Enums\LogLevel::Full, 'ldap-');
+		}
+			
 	}
 
 	/**
