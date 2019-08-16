@@ -10,7 +10,7 @@ namespace Aurora\Modules\LdapChangePasswordPlugin;
 /**
  * @license https://www.gnu.org/licenses/agpl-3.0.html AGPL-3.0
  * @license https://afterlogic.com/products/common-licensing AfterLogic Software License
- * @copyright Copyright (c) 2018, Afterlogic Corp.
+ * @copyright Copyright (c) 2019, Afterlogic Corp.
  *
  * @package Modules
  */
@@ -22,9 +22,8 @@ class Module extends \Aurora\System\Module\AbstractModule
 	
 	public function init() 
 	{
-		$this->oMailModule = \Aurora\System\Api::GetModule('Mail');
-	
-		$this->subscribeEvent('Mail::ChangePassword::before', array($this, 'onBeforeChangePassword'));
+		$this->subscribeEvent('Mail::Account::ToResponseArray', array($this, 'onMailAccountToResponseArray'));
+		$this->subscribeEvent('Mail::ChangeAccountPassword', array($this, 'onChangeAccountPassword'));
 	}
 	
 	/**
@@ -32,7 +31,7 @@ class Module extends \Aurora\System\Module\AbstractModule
 	 * @param CAccount $oAccount
 	 * @return \Aurora\System\Utils\Ldap|bool
 	 */
-	private function GetLdap($oAccount, $sDn, $sPassword)
+	protected function getLdap($oAccount, $sDn, $sPassword)
 	{
 		if (!$oAccount)
 		{
@@ -50,7 +49,7 @@ class Module extends \Aurora\System\Module\AbstractModule
 		) ? $oLdap : false;
 	}
 	
-	function PasswordHash($sPassword)
+	protected function getPasswordHash($sPassword)
 	{
 		$sEncType = strtolower((string)  $this->getConfig('PasswordType', 'clear'));
 
@@ -78,14 +77,37 @@ class Module extends \Aurora\System\Module\AbstractModule
 	}		
 
 	/**
-	 * @param CAccount $oAccount
+	 * Adds to account response array information about if allowed to change the password for this account.
+	 * @param array $aArguments
+	 * @param mixed $mResult
 	 */
-	public function changePassword($oAccount, $sPassword)
+	public function onMailAccountToResponseArray($aArguments, &$mResult)
+	{
+		$oAccount = $aArguments['Account'];
+
+		if ($oAccount && $this->checkCanChangePassword($oAccount))
+		{
+			if (!isset($mResult['Extend']) || !is_array($mResult['Extend']))
+			{
+				$mResult['Extend'] = [];
+			}
+			$mResult['Extend']['AllowChangePasswordOnMailServer'] = true;
+		}
+	}
+
+	/**
+	 * Tries to change password for account.
+	 * @param \Aurora\Modules\Mail\Classes\Account $oAccount
+	 * @param string $sPassword
+	 * @return boolean
+	 * @throws \Aurora\System\Exceptions\ApiException
+	 */
+	protected function changePassword($oAccount, $sPassword)
 	{
 	    $bResult = false;
 	    if (0 < strlen($oAccount->IncomingPassword) && $oAccount->IncomingPassword !== $sPassword )
 	    {
-			$oLdap = $this->GetLdap($oAccount, $this->getConfig('BindDn', ''), $this->getConfig('BindPassword', ''));
+			$oLdap = $this->getLdap($oAccount, $this->getConfig('BindDn', ''), $this->getConfig('BindPassword', ''));
 
 			$sSearchAttribute = (string) $this->getConfig('SearchAttribute', 'mail');
 			
@@ -99,10 +121,10 @@ class Module extends \Aurora\System\Module\AbstractModule
 
 					try
 					{
-						if (!empty($sDn) && $this->GetLdap($oAccount, $sDn, $oAccount->IncomingPassword))
+						if (!empty($sDn) && $this->getLdap($oAccount, $sDn, $oAccount->IncomingPassword))
 						{
 							$aModifyEntry = array(
-								(string) $this->getConfig('PasswordAttribute', 'password') => $this->PasswordHash($sPassword)
+								(string) $this->getConfig('PasswordAttribute', 'password') => $this->getPasswordHash($sPassword)
 							);
 							$oLdap->SetSearchDN('');
 							$oLdap->Modify($sDn, $aModifyEntry);
@@ -110,24 +132,24 @@ class Module extends \Aurora\System\Module\AbstractModule
 						}
 						else
 						{
-							\Aurora\System\Api::Log('Can`t change password for user ' . $oAccount->Email . ' on LDAP-server', \Aurora\System\Enums\LogLevel::Full, 'ldap-');
+							\Aurora\System\Api::Log('Can`t change password for user ' . $oAccount->Email . ' on LDAP-server');
 						}
 					}
 					catch (\Exception $oException)
 					{
 						$bResult = false;
-						\Aurora\System\Api::LogException($oException, \Aurora\System\Enums\LogLevel::Full, 'ldap-');
+						\Aurora\System\Api::LogException($oException);
 					}
 				}
 				else
 				{
 					$bResult = false;
-					\Aurora\System\Api::Log('Can`t find user ' . $oAccount->Email . ' on LDAP-server', \Aurora\System\Enums\LogLevel::Full, 'ldap-');
+					\Aurora\System\Api::Log('Can`t find user ' . $oAccount->Email . ' on LDAP-server');
 				}
 			}
 			else
 			{
-				\Aurora\System\Api::Log('Can`t connect to LDAP-server', \Aurora\System\Enums\LogLevel::Full, 'ldap-');
+				\Aurora\System\Api::Log('Can`t connect to LDAP-server');
 			}
 		}
 		
@@ -135,37 +157,33 @@ class Module extends \Aurora\System\Module\AbstractModule
 	}
 	
 	/**
-	 * 
+	 * Tries to change password for account if allowed.
 	 * @param array $aArguments
 	 * @param mixed $mResult
 	 */
-	public function onBeforeChangePassword($aArguments, &$mResult)
+	public function onChangeAccountPassword($aArguments, &$mResult)
 	{
-		$mResult = true;
+		$bPasswordChanged = false;
+		$bBreakSubscriptions = false;
 		
-		$oAccount = $this->oMailModule->GetAccount($aArguments['AccountId']);
-
-		if ($oAccount)
+		$oAccount = $aArguments['Account'];
+		if ($oAccount && $this->checkCanChangePassword($oAccount) && $oAccount->getPassword() === $aArguments['CurrentPassword'])
 		{
-			if ($this->checkCanChangePassword($oAccount))
-			{
-				$mResult = $this->changePassword($oAccount, $aArguments['NewPassword']);
-				return !$mResult; // break subscriptions
-			}
-			else
-			{
-				\Aurora\System\Api::Log('Change password is not allowed for this account', \Aurora\System\Enums\LogLevel::Full, 'ldap-');
-			}
+			$bPasswordChanged = $this->changePassword($oAccount, $aArguments['NewPassword']);
+			$bBreakSubscriptions = true; // break if Hmailserver plugin tries to change password in this account. 
 		}
-		else
+		
+		if (is_array($mResult))
 		{
-			\Aurora\System\Api::Log('Account not found', \Aurora\System\Enums\LogLevel::Full, 'ldap-');
+			$mResult['AccountPasswordChanged'] = $mResult['AccountPasswordChanged'] || $bPasswordChanged;
 		}
-			
+		
+		return $bBreakSubscriptions;
 	}
 
 	/**
-	 * @param CAccount $oAccount
+	 * Checks if allowed to change password for account.
+	 * @param \Aurora\Modules\Mail\Classes\Account $oAccount
 	 * @return bool
 	 */
 	protected function checkCanChangePassword($oAccount)
@@ -174,18 +192,14 @@ class Module extends \Aurora\System\Module\AbstractModule
 		
 		if (!$bFound)
 		{
-			$oServer = $this->oMailModule->GetServer($oAccount->ServerId);
-			if ($oServer && in_array($oServer->Name, $this->getConfig('SupportedServers')))
+			$oServer = $oAccount->getServer();
+
+			if ($oServer && in_array($oServer->IncomingServer, $this->getConfig('SupportedServers')))
 			{
 				$bFound = true;
 			}
 		}
+
 		return $bFound;
 	}
-	
-	public function loadModuleSettings()
-	{
-		return parent::loadModuleSettings();
-	}	
-	
 }
