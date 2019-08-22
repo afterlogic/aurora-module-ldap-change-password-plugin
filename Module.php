@@ -105,7 +105,7 @@ class Module extends \Aurora\System\Module\AbstractModule
 	protected function changePassword($oAccount, $sPassword)
 	{
 	    $bResult = false;
-	    if (0 < strlen($oAccount->IncomingPassword) && $oAccount->IncomingPassword !== $sPassword )
+	    if (0 < strlen($oAccount->getPassword()) && $oAccount->getPassword() !== $sPassword )
 	    {
 			$oLdap = $this->getLdap($oAccount, $this->getConfig('BindDn', ''), $this->getConfig('BindPassword', ''));
 
@@ -121,7 +121,7 @@ class Module extends \Aurora\System\Module\AbstractModule
 
 					try
 					{
-						if (!empty($sDn) && $this->getLdap($oAccount, $sDn, $oAccount->IncomingPassword))
+						if (!empty($sDn) && $this->getLdap($oAccount, $sDn, $oAccount->getPassword()))
 						{
 							$aModifyEntry = array(
 								(string) $this->getConfig('PasswordAttribute', 'password') => $this->getPasswordHash($sPassword)
