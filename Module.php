@@ -63,7 +63,7 @@ class Module extends \Aurora\System\Module\AbstractModule
 				$sMd5Hash = md5($sPassword);
 				for ( $i = 0; $i < 32; $i += 2 )
 				{
-					$sPasswordHash .= chr( hexdec( $sMd5Hash{ $i + 1 } ) + hexdec( $sMd5Hash{ $i } ) * 16 );
+					$sPasswordHash .= chr( hexdec( $sMd5Hash[ $i + 1 ] ) + hexdec( $sMd5Hash[ $i ] ) * 16 );
 				}
 				$sPasswordHash = '{MD5}'.base64_encode($sPasswordHash);
 				break;
