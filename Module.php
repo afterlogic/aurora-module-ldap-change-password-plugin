@@ -12,6 +12,8 @@ namespace Aurora\Modules\LdapChangePasswordPlugin;
  * @license https://afterlogic.com/products/common-licensing AfterLogic Software License
  * @copyright Copyright (c) 2023, Afterlogic Corp.
  *
+ * @property Settings $oModuleSettings
+ *
  * @package Modules
  */
 class Module extends \Aurora\System\Module\AbstractModule
@@ -51,20 +53,20 @@ class Module extends \Aurora\System\Module\AbstractModule
             return false;
         }
 
-        $oLdap = new \Aurora\System\Utils\Ldap((string)$this->getConfig('SearchDn', ''));
+        $oLdap = new \Aurora\System\Utils\Ldap((string)$this->oModuleSettings->SearchDn);
         return $oLdap->Connect(
-            (string) $this->getConfig('Host', '127.0.0.1'),
-            (int) $this->getConfig('Port', 389),
+            (string) $this->oModuleSettings->Host,
+            (int) $this->oModuleSettings->Port,
             (string) $sDn,
             (string) $sPassword,
-            (string) $this->getConfig('HostBackup', ''),
-            (int) $this->getConfig('PortBackup', 389)
+            (string) $this->oModuleSettings->HostBackup,
+            (int) $this->oModuleSettings->PortBackup
         ) ? $oLdap : false;
     }
 
     protected function getPasswordHash($sPassword)
     {
-        $sEncType = strtolower((string)  $this->getConfig('PasswordType', 'clear'));
+        $sEncType = strtolower((string)  $this->oModuleSettings->PasswordType);
 
         $sPasswordHash = '';
         switch($sEncType) {
@@ -115,9 +117,9 @@ class Module extends \Aurora\System\Module\AbstractModule
     {
         $bResult = false;
         if (0 < strlen($oAccount->getPassword()) && $oAccount->getPassword() !== $sPassword) {
-            $oLdap = $this->getLdap($oAccount, $this->getConfig('BindDn', ''), $this->getConfig('BindPassword', ''));
+            $oLdap = $this->getLdap($oAccount, $this->oModuleSettings->BindDn, $this->oModuleSettings->BindPassword);
 
-            $sSearchAttribute = (string) $this->getConfig('SearchAttribute', 'mail');
+            $sSearchAttribute = (string) $this->oModuleSettings->SearchAttribute;
 
             if ($oLdap) {
                 if ($oLdap->Search('('. $sSearchAttribute .'='.$oAccount->Email.')') && 1 === $oLdap->ResultCount()) {
@@ -127,7 +129,7 @@ class Module extends \Aurora\System\Module\AbstractModule
                     try {
                         if (!empty($sDn) && $this->getLdap($oAccount, $sDn, $oAccount->getPassword())) {
                             $aModifyEntry = array(
-                                (string) $this->getConfig('PasswordAttribute', 'password') => $this->getPasswordHash($sPassword)
+                                (string) $this->oModuleSettings->PasswordAttribute => $this->getPasswordHash($sPassword)
                             );
                             $oLdap->SetSearchDN('');
                             $oLdap->Modify($sDn, $aModifyEntry);
@@ -181,12 +183,12 @@ class Module extends \Aurora\System\Module\AbstractModule
      */
     protected function checkCanChangePassword($oAccount)
     {
-        $bFound = in_array("*", $this->getConfig('SupportedServers', array()));
+        $bFound = in_array("*", $this->oModuleSettings->SupportedServers);
 
         if (!$bFound) {
             $oServer = $oAccount->getServer();
 
-            if ($oServer && in_array($oServer->IncomingServer, $this->getConfig('SupportedServers'))) {
+            if ($oServer && in_array($oServer->IncomingServer, $this->oModuleSettings->SupportedServers)) {
                 $bFound = true;
             }
         }
