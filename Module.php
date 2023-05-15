@@ -88,7 +88,7 @@ class Module extends \Aurora\System\Module\AbstractModule
                 break;
             case 'crypt':
             default:
-                $sPasswordHash = '{CRYPT}'.crypt($sPassword, \Aurora\System\Api::$sSalt);
+                $sPasswordHash = '{CRYPT}'.crypt($sPassword, \Aurora\System\Api::GetHashSalt());
                 break;
         }
 
