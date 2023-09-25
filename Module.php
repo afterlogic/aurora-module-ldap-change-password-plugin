@@ -23,7 +23,7 @@ class Module extends \Aurora\System\Module\AbstractModule
         $this->subscribeEvent('Mail::Account::ToResponseArray', array($this, 'onMailAccountToResponseArray'));
         $this->subscribeEvent('Mail::ChangeAccountPassword', array($this, 'onChangeAccountPassword'));
     }
-	
+
     /**
      * @return Module
      */
@@ -84,11 +84,11 @@ class Module extends \Aurora\System\Module\AbstractModule
                 for ($i = 0; $i < 32; $i += 2) {
                     $sPasswordHash .= chr(hexdec($sMd5Hash[ $i + 1 ]) + hexdec($sMd5Hash[ $i ]) * 16);
                 }
-                $sPasswordHash = '{MD5}'.base64_encode($sPasswordHash);
+                $sPasswordHash = '{MD5}' . base64_encode($sPasswordHash);
                 break;
             case 'crypt':
             default:
-                $sPasswordHash = '{CRYPT}'.crypt($sPassword, \Aurora\System\Api::GetHashSalt());
+                $sPasswordHash = '{CRYPT}' . crypt($sPassword, \Aurora\System\Api::GetHashSalt());
                 break;
         }
 
@@ -128,7 +128,7 @@ class Module extends \Aurora\System\Module\AbstractModule
             $sSearchAttribute = (string) $this->oModuleSettings->SearchAttribute;
 
             if ($oLdap) {
-                if ($oLdap->Search('('. $sSearchAttribute .'='.$oAccount->Email.')') && 1 === $oLdap->ResultCount()) {
+                if ($oLdap->Search('(' . $sSearchAttribute . '=' . $oAccount->Email . ')') && 1 === $oLdap->ResultCount()) {
                     $aData = $oLdap->ResultItem();
                     $sDn = !empty($aData['dn']) ? $aData['dn'] : '';
 
