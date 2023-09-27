@@ -72,10 +72,10 @@ class Settings extends \Aurora\System\Module\Settings
                 "Password used for authentication on LDAP server. Will be automatically encrypted"
             ),
             "HostBackup" => new SettingsProperty(
-                "Backup LDAP server host",
+                "",
                 "string",
                 null,
-                ""
+                "Backup LDAP server host"
             ),
             "PortBackup" => new SettingsProperty(
                 389,
