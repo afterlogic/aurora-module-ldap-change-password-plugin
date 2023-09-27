@@ -123,7 +123,16 @@ class Module extends \Aurora\System\Module\AbstractModule
     {
         $bResult = false;
         if (0 < strlen($oAccount->getPassword()) && $oAccount->getPassword() !== $sPassword) {
-            $oLdap = $this->getLdap($oAccount, $this->oModuleSettings->BindDn, $this->oModuleSettings->BindPassword);
+            $sBindDn = $this->oModuleSettings->BindDn;
+            $sBindPassword = $this->oModuleSettings->BindPassword;
+            if ($sBindPassword && !\Aurora\System\Utils::IsEncryptedValue($sBindPassword)) {
+                $this->setConfig('BindPassword', \Aurora\System\Utils::EncryptValue($sBindPassword));
+                $this->saveModuleConfig();
+            } else {
+                $sBindPassword = \Aurora\System\Utils::DecryptValue($sBindPassword);
+            }
+
+            $oLdap = $this->getLdap($oAccount, $sBindDn, $sBindPassword);
 
             $sSearchAttribute = (string) $this->oModuleSettings->SearchAttribute;
 
@@ -133,7 +142,7 @@ class Module extends \Aurora\System\Module\AbstractModule
                     $sDn = !empty($aData['dn']) ? $aData['dn'] : '';
 
                     try {
-                        if (!empty($sDn) && $this->getLdap($oAccount, $sDn, $oAccount->getPassword())) {
+                        if (!empty($sDn)) {
                             $aModifyEntry = array(
                                 (string) $this->oModuleSettings->PasswordAttribute => $this->getPasswordHash($sPassword)
                             );
