@@ -7,6 +7,8 @@
 
 namespace Aurora\Modules\LdapChangePasswordPlugin;
 
+use Aurora\Modules\Mail\Models\MailAccount;
+
 /**
  * @license https://www.gnu.org/licenses/agpl-3.0.html AGPL-3.0
  * @license https://afterlogic.com/products/common-licensing AfterLogic Software License
@@ -21,7 +23,7 @@ class Module extends \Aurora\System\Module\AbstractModule
     public function init()
     {
         $this->subscribeEvent('Mail::Account::ToResponseArray', array($this, 'onMailAccountToResponseArray'));
-        $this->subscribeEvent('Mail::ChangeAccountPassword', array($this, 'onChangeAccountPassword'));
+        $this->subscribeEvent('ChangeAccountPassword', array($this, 'onChangeAccountPassword'));
     }
 
     /**
@@ -49,8 +51,9 @@ class Module extends \Aurora\System\Module\AbstractModule
     }
 
     /**
-     * @staticvar CLdapConnector|null $oLdap
      * @param \Aurora\Modules\Mail\Models\MailAccount $oAccount
+     * @param string $sDn
+     * @param string $sPassword
      * @return \Aurora\System\Utils\Ldap|bool
      */
     protected function getLdap($oAccount, $sDn, $sPassword)
@@ -88,7 +91,7 @@ class Module extends \Aurora\System\Module\AbstractModule
                 break;
             case 'crypt':
             default:
-                $sPasswordHash = '{CRYPT}' . crypt($sPassword, \Aurora\System\Api::GetHashSalt());
+                $sPasswordHash = '{CRYPT}' . password_hash($sPassword, PASSWORD_BCRYPT);
                 break;
         }
 
@@ -178,9 +181,8 @@ class Module extends \Aurora\System\Module\AbstractModule
         $bPasswordChanged = false;
         $bBreakSubscriptions = false;
 
-        $oAccount = $aArguments['Account'];
-        if ($oAccount && $this->checkCanChangePassword($oAccount) && ($oAccount->getPassword() === $aArguments['CurrentPassword']
-          || isset($aArguments['SkipCurrentPasswordCheck']) && $aArguments['SkipCurrentPasswordCheck'])) {
+        $oAccount = $aArguments['Account'] instanceof MailAccount ? $aArguments['Account'] : false;
+        if ($oAccount && $this->checkCanChangePassword($oAccount) && ($oAccount->getPassword() === $aArguments['CurrentPassword'])) {
             $bPasswordChanged = $this->changePassword($oAccount, $aArguments['NewPassword']);
             $bBreakSubscriptions = true; // break if Hmailserver plugin tries to change password in this account.
         }
