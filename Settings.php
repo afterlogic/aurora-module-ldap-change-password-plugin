@@ -51,13 +51,13 @@ class Settings extends \Aurora\System\Module\Settings
                 "127.0.0.1",
                 "string",
                 null,
-                "LDAP server host"
+                "LDAP server host; specify ldaps:// prefix to connect via LDAPS"
             ),
             "Port" => new SettingsProperty(
                 389,
                 "int",
                 null,
-                "LDAP server port"
+                "LDAP server port; for LDAPS, default port is 636"
             ),
             "BindDn" => new SettingsProperty(
                 "cn=admin,dc=example,dc=org",
