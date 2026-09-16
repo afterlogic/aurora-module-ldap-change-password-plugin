@@ -75,6 +75,9 @@ class Module extends \Aurora\System\Module\AbstractModule
                 $sPasswordHash = $sPassword;
                 break;
             case 'md5':
+                // Intentional: implements the standard LDAP {MD5} userPassword scheme (RFC 2307)
+                // for interoperability with directory servers/clients that expect it. Admin-selected
+                // via PasswordType; the default scheme is 'crypt' (bcrypt), not this one.
                 $sMd5Hash = md5($sPassword);
                 for ($i = 0; $i < 32; $i += 2) {
                     $sPasswordHash .= chr(hexdec($sMd5Hash[ $i + 1 ]) + hexdec($sMd5Hash[ $i ]) * 16);
